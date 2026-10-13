@@ -1,0 +1,49 @@
+#!/bin/sh
+# The whole budget picture in a terminal: Codex per account, then Claude's own window and
+# the mode that follows from it. The same two scripts the widget runs.
+#
+#   ai-usage              one report
+#   ai-usage --watch      self-refreshing, colours intact (default 300s)
+#   ai-usage --watch 60   ...at a chosen interval (never below 30s)
+#
+# Use --watch, never `watch -n 5 ai-usage`: every cycle opens a REAL API turn per Codex
+# account, so a tight loop spends the very budget it is reporting on.
+#
+# /usr/bin/python3 explicitly, not `python3`: whichever virtualenv happens to be active
+# must not decide whether this works.
+
+APP_HOME="${AI_USAGE_TRACKER_HOME:-$HOME/.ai-usage-tracker}"
+
+SECS=""
+case "${1-}" in
+  --watch)   SECS="${2:-300}"; [ -n "${2-}" ] && shift 2 || shift 1 ;;
+  --watch=*) SECS="${1#--watch=}"; shift ;;
+esac
+
+report() {
+  /usr/bin/python3 "$APP_HOME/statusline.py" --report || return $?
+  echo
+  /usr/bin/python3 "$APP_HOME/work-mode.py" --report
+}
+
+if [ -z "$SECS" ]; then
+  report
+  exit $?
+fi
+
+case "$SECS" in
+  ''|*[!0-9]*) SECS=300 ;;
+  *) [ "$SECS" -lt 30 ] && SECS=30 ;;
+esac
+
+# Alternate screen buffer, so Ctrl-C hands the scrollback back exactly as it was.
+printf '\033[?1049h\033[?25l'
+trap 'printf "\033[?1049l\033[?25h"' EXIT
+trap 'exit 130' INT TERM HUP
+
+while :; do
+  # Render to a variable first, so a slow API read never leaves a half-drawn report.
+  OUT=$(report 2>&1)
+  printf '\033[H\033[2J%s\n\n\033[2m  refreshing every %ss · Ctrl-C to stop\033[0m' "$OUT" "$SECS"
+  sleep "$SECS"
+done

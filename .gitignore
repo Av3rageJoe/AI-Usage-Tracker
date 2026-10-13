@@ -1,0 +1,20 @@
+# Build output and Python caches
+*.app/
+__pycache__/
+*.pyc
+.build/
+
+# Never commit runtime state, logins or local config
+.cache/
+cache/
+*.log
+auth.json
+.credentials.json
+codex-accounts.json
+claude-accounts.json
+.env
+.env.*
+
+# macOS
+.DS_Store
+* 2.*
