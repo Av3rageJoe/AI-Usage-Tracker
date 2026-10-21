@@ -181,19 +181,27 @@ struct AuthLauncher { let scriptPath: String; let sentinelPath: String }
 /// filenames, while 0700/0600 keep another local user from changing either handoff file.
 func makeAuthLauncher(toolPath: String, environmentName: String, configDir: String,
                       product: String, label: String, action: String,
-                      arguments: [String]) -> AuthLauncher? {
+                      arguments: [String], defaultLocation: Bool = false) -> AuthLauncher? {
     let temp = NSTemporaryDirectory()
     let identifier = UUID().uuidString
     let path = temp + identifier + ".command"
     let sentinel = temp + identifier + ".status"
     let command = ([toolPath] + arguments).map(shellQuote).joined(separator: " ")
+    // Claude Code names its Keychain item after CLAUDE_CONFIG_DIR whenever that variable is
+    // set — even to the default folder — so `CLAUDE_CONFIG_DIR=~/.claude claude auth login`
+    // files the login under "Claude Code-credentials-<hash>", where neither a plain `claude`
+    // nor this widget looks, and a re-login from the widget changes nothing. The default
+    // account therefore runs with the variable cleared, not set.
+    let invocation = defaultLocation
+        ? "unset \(environmentName)\n\(command)"
+        : "\(environmentName)=\(shellQuote(expand(configDir))) \(command)"
     let script = """
     #!/bin/sh
     printf '%s for %s account %s  —  %s=%s\\n' \
       \(shellQuote(action)) \(shellQuote(product)) \(shellQuote(label)) \
-      \(shellQuote(environmentName)) \(shellQuote(configDir))
+      \(shellQuote(environmentName)) \(shellQuote(defaultLocation ? "(default)" : configDir))
     echo
-    \(environmentName)=\(shellQuote(expand(configDir))) \(command)
+    \(invocation)
     code=$?
     echo
     if [ "$code" -eq 0 ]; then
@@ -715,11 +723,14 @@ func accountsCLI(_ args: [String]) -> Bool {
             FileHandle.standardError.write("\(tool) is not installed\n".data(using: .utf8)!)
             exit(1)
         }
+        let defaultLocation = tool == "claude"
+            && isDefaultClaudeAccount(ClaudeAccount(label: label, configDir: configDir))
         guard let launcher = makeAuthLauncher(toolPath: toolPath,
                                               environmentName: environmentName,
                                               configDir: configDir, product: product,
                                               label: label, action: actionText,
-                                              arguments: arguments) else { exit(1) }
+                                              arguments: arguments,
+                                              defaultLocation: defaultLocation) else { exit(1) }
         print("\(launcher.scriptPath)\t\(launcher.sentinelPath)")
         return true
     }
@@ -1485,7 +1496,7 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func launchAuth(toolName: String, environmentName: String, configDir: String,
                     product: String, label: String, action: String,
-                    arguments: [String], install: String,
+                    arguments: [String], install: String, defaultLocation: Bool = false,
                     onExit: ((Int32) -> Void)? = nil) {
         guard let toolPath = resolveTool(toolName) else {
             _ = alert("\(product) is not installed", "Install it first with: \(install)",
@@ -1496,7 +1507,8 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                               environmentName: environmentName,
                                               configDir: configDir, product: product,
                                               label: label, action: action,
-                                              arguments: arguments) else {
+                                              arguments: arguments,
+                                              defaultLocation: defaultLocation) else {
             _ = alert("Could not open Terminal", "Writing the private launcher failed.",
                       style: .critical).runModal()
             return
@@ -1656,7 +1668,8 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
         launchAuth(toolName: "claude", environmentName: "CLAUDE_CONFIG_DIR",
                    configDir: account.configDir, product: "Claude", label: account.label,
                    action: action, arguments: ["auth", "login"],
-                   install: "npm install -g @anthropic-ai/claude-code", onExit: onExit)
+                   install: "npm install -g @anthropic-ai/claude-code",
+                   defaultLocation: isDefaultClaudeAccount(account), onExit: onExit)
     }
 
     /// Claude Code has no device-code login. Its Terminal login shows a link that works in
@@ -1696,7 +1709,8 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
         launchAuth(toolName: "claude", environmentName: "CLAUDE_CONFIG_DIR",
                    configDir: account.configDir, product: "Claude", label: account.label,
                    action: "Signing out", arguments: ["auth", "logout"],
-                   install: "npm install -g @anthropic-ai/claude-code")
+                   install: "npm install -g @anthropic-ai/claude-code",
+                   defaultLocation: isDefaultClaudeAccount(account))
     }
 
     @objc func revealClaudeAccount(_ sender: NSMenuItem) {

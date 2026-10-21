@@ -109,6 +109,24 @@ UW_STUB_RECORD="$TMP/claude-record" UW_STUB_EXIT=7 sh "$LAUNCHER" >/dev/null
 rm -f "$SENTINEL"
 pass "failure sentinel"
 
+# The DEFAULT account must sign in with CLAUDE_CONFIG_DIR cleared — even when the caller's
+# environment has it set — because Claude Code files a login made with the variable set
+# under a different Keychain item ("Claude Code-credentials-<hash>"), which nothing reads.
+for DEFAULT_DIR in '~/.claude' "$HOME/.claude"; do
+  LAUNCH_INFO="$(UW_TOOL_DIR="$TOOLS" "$WIDGET" --make-auth-launcher \
+    claude login Default "$DEFAULT_DIR")"
+  LAUNCHER="$(printf '%s\n' "$LAUNCH_INFO" | cut -f1)"
+  SENTINEL="$(printf '%s\n' "$LAUNCH_INFO" | cut -f2)"
+  CLAUDE_CONFIG_DIR=/inherited UW_STUB_RECORD="$TMP/default-record" UW_STUB_EXIT=0 \
+    sh "$LAUNCHER" >/dev/null
+  [ "$(sed -n 's/^config_dir=//p' "$TMP/default-record")" = "" ] \
+    || fail "default account login" "CLAUDE_CONFIG_DIR was set for $DEFAULT_DIR"
+  [ "$(sed -n 's/^argc=//p' "$TMP/default-record")" = 2 ] \
+    || fail "default account login" "claude argv changed"
+  rm -f "$SENTINEL"
+done
+pass "default account signs in with CLAUDE_CONFIG_DIR cleared"
+
 # Round-trip the complete records, normalising paths on both sides rather than comparing
 # labels alone. The first added path also proves ~/ expansion.
 write_seed
@@ -174,4 +192,4 @@ MENU_LINE="$($WIDGET --check-menus | awk -F '\t' \
   || fail "menu metadata" "default Remove is enabled"
 pass "default Remove menu item disabled"
 
-echo "claude-accounts: 11/11 pass"
+echo "claude-accounts: 12/12 pass"

@@ -194,6 +194,7 @@ rather than a public issue.
 | --- | --- |
 | An account shows `login expired` | Run `CODEX_HOME=<its folder> codex login`, or use **⋯ → the account → Log in on this Mac…**. |
 | An account shows `no-auth` | That folder has no Codex login yet. Sign in as above, or remove the account. |
+| Claude shows `login expired …` | Claude Code renews its login only while the `claude` CLI runs; the Claude desktop app never renews it. Run `claude -p hi` in Terminal once, and the widget picks it up within 5 minutes. |
 | Claude shows `budget unreadable` | Make sure Claude Code is signed in to a Claude plan with `claude auth login`. API-key billing has no usage windows. |
 | Every figure has a `*` | The live read is failing, for example because you're offline. The numbers shown are estimates from local logs. |
 | The card disappeared | Open "AI Usage Tracker" from Spotlight, or use **Show widget** in the menu bar chip. |

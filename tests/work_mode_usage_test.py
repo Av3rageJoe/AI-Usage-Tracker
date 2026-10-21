@@ -175,6 +175,46 @@ try:
     check("with a figure to serve, retry-after is honoured to the second (no probe)",
           box["calls"] == 0 and usage is not None, "%d requests" % box["calls"])
 
+    # ------------------------------------------- 6b. an expired login is never sent
+    print("\n=== an expired login is reported, never sent (it only earns 401s, then a 429) ===")
+    import json as _json, subprocess as _sp
+    wipe(wm)
+    wm = fresh_module(tmp)
+    net = {"calls": 0}
+
+    class _NoNet:
+        def open(self, *a, **k):
+            net["calls"] += 1
+            raise RuntimeError("the network must not be touched")
+
+    wm.urllib.request.build_opener = lambda *a: _NoNet()
+
+    def keychain_holds(expires_ms):
+        secret = _json.dumps({"claudeAiOauth": {"accessToken": "a", "refreshToken": "r",
+                                                "expiresAt": expires_ms}})
+        wm.subprocess.run = lambda *a, **k: _sp.CompletedProcess(a, 0, stdout=secret, stderr="")
+
+    keychain_holds(int((time.time() - 3600) * 1000))
+    token, why = wm.claude_token()
+    check("an expired login is not handed out", token is None, token)
+    check("the reason says how to renew it", bool(why) and "`claude -p hi`" in why, why)
+    usage, reason = wm.claude_usage()
+    check("and no request is made with it", usage is None and net["calls"] == 0,
+          "%d requests" % net["calls"])
+    cool = wm.claude_cache_load().get("cooldown_until", 0) - time.time()
+    check("a local expiry gets the short cooldown, so a renewal shows up soon",
+          0 < cool <= wm.CLAUDE_FAIL_COOLDOWN + 1, cool)
+    keychain_holds(int((time.time() + 3600) * 1000))
+    check("a valid login is handed out unchanged", wm.claude_token() == ("a", None))
+
+    wipe(wm)
+    wm = fresh_module(tmp)
+    stub(wm, UNAUTHORISED)
+    wm.claude_usage()
+    cool = wm.claude_cache_load().get("cooldown_until", 0) - time.time()
+    check("a server 401 pauses for CLAUDE_AUTH_COOLDOWN, not one minute",
+          cool > wm.CLAUDE_FAIL_COOLDOWN + 1, cool)
+
     # ------------------------------------------------------------------ 7. age wording
     print("\n=== a 6h-old figure must not be reported as \"484m ago\" ===")
     check("age_text renders hours", wm.age_text(29126) == "8h 5m", wm.age_text(29126))

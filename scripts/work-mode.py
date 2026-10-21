@@ -91,6 +91,10 @@ CRED_FILE = os.path.join(HOME, ".claude", ".credentials.json")
 CLAUDE_TIMEOUT = 10
 CLAUDE_UA = "claude-cli (external, cli)"
 
+# A 401/403 does not heal in a minute, and retrying one every minute is what turned a dead
+# token into a 429 carrying `retry-after: 3600` (measured).
+CLAUDE_AUTH_COOLDOWN = 10 * 60
+
 # The endpoint IS rate-limited, and session starts are bursty — measured 2026-08-16, a
 # handful of starts plus a few manual checks earned an HTTP 429 within minutes. So the
 # figure is cached and SHARED by every reader:
@@ -147,7 +151,20 @@ def claude_token():
         return None, "unreadable-credentials"
     oauth = data.get("claudeAiOauth") or data
     token = oauth.get("accessToken")
-    return (token, None) if token else (None, "no-token")
+    if not token:
+        return None, "no-token"
+    # Only a running `claude` CLI renews this login; the Claude desktop app signs in through
+    # its own host and never touches this item. So after a day spent only in the desktop app
+    # the token here is simply past its expiry. Sending it only earns 401s, and a run of
+    # those earned an hour-long 429 — so it is not sent, and the reason says how to renew it.
+    expires = oauth.get("expiresAt")
+    if isinstance(expires, (int, float)) and not isinstance(expires, bool):
+        expires = expires / 1000.0 if expires > 1e11 else float(expires)
+        if expires <= time.time():
+            # Any real request renews it; `-p hi` is the shortest one that surely makes one.
+            return None, ("login expired %s; run `claude -p hi` to renew it"
+                          % time.strftime("%a %H:%M", time.localtime(expires)))
+    return token, None
 
 
 def with_resets_applied(usage, now):
@@ -328,7 +345,11 @@ def claude_usage():
     if reason == "http-429":
         # The endpoint tells us exactly how long to wait (measured: 84s, and 3600s).
         wait = retry_after or CLAUDE_COOLDOWN
+    elif reason in ("http-401", "http-403"):
+        wait = CLAUDE_AUTH_COOLDOWN
     else:
+        # Including an expired login: that check is local, so a renewal by `claude` is
+        # picked up on the very next read.
         wait = CLAUDE_FAIL_COOLDOWN
     # A blind probe keeps the LONGER of the two deadlines — it may not shorten a lockout the
     # endpoint already asked for, and it may not stack a fresh hour on top of it either.
@@ -357,8 +378,9 @@ def claude_fetch():
         with opener.open(req, timeout=CLAUDE_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8", "replace"))
     except urllib.error.HTTPError as exc:
-        # 401 = the stored token has expired. Claude Code renews it on its own; we never
-        # try to, because a botched refresh would break the login this session runs on.
+        # claude_token() never sends a token past its expiry, so a 401 here means the login
+        # was revoked server-side. This check never renews or rewrites the login itself: it
+        # reads Claude Code's Keychain item and leaves renewal to Claude Code.
         try:
             retry = int(float(exc.headers.get("retry-after") or 0))
         except (AttributeError, TypeError, ValueError):

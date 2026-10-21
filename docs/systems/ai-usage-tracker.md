@@ -56,6 +56,11 @@ available in a terminal (`ai-usage`) and, optionally, as a Claude Code status li
   before display; the widget never converts an unchecked Double to Int.
 - A `*` (non-live) Codex figure never yields a dispatch recommendation or relief.
 - UNKNOWN is never shown as NORMAL; a crashed check exits 3 with CHECK-BROKEN.
+- A Claude token past its `expiresAt` is never sent (it only earns 401s, then a 429);
+  the reason names `claude -p hi`. This tool never renews or rewrites the Claude login.
+- Sign-in and sign-out for the default Claude account run with `CLAUDE_CONFIG_DIR`
+  cleared: set, even to `~/.claude`, it makes Claude Code store the login in a different
+  Keychain item ("Claude Code-credentials-<sha256(dir)[:8]>") that nothing reads.
 
 ## Where to look
 
@@ -77,6 +82,11 @@ available in a terminal (`ai-usage`) and, optionally, as a Claude Code status li
   next refresh until it exits; there is no whole-fetch watchdog.
 
 ## Changelog
+
+- 2026-10-21 — Claude usage stopped after a day in the desktop app: the CLI's Keychain
+  token expired (only a running `claude` renews it), 401s escalated to a 429, and a
+  re-login from the widget landed in a hashed Keychain item. Expired tokens are no longer
+  sent, 401/403 pause 10 min, and default-account sign-in clears `CLAUDE_CONFIG_DIR`.
 
 - 2026-10-13 — First public release: security audit fixes (redirect refusal, private
   `auth.json` writes, 0700 account folders, input clamping, test seam confined to the bare
