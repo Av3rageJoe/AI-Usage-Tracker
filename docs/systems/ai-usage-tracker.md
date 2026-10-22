@@ -9,7 +9,10 @@ available in a terminal (`ai-usage`) and, optionally, as a Claude Code status li
 
 ## How it works
 
-- `src/usage-widget.swift` — AppKit accessory app. Every 300 s (and on wake) it runs
+- `src/usage-widget.swift` — AppKit accessory app. The card has a tinted Codex section
+  (one block per account: letter badge, folder, Week/5h rows, a status badge) and a tinted
+  Claude section (Week/5h with resets, plan name). Logos are the installed apps' icons
+  from `NSWorkspace`, with a drawn mark when an app is missing. Every 300 s (and on wake) it runs
   `/usr/bin/python3 $APP_HOME/statusline.py --json`, then `work-mode.py --json`, with a
   clean environment, and draws the result: one borderless panel per display at desktop
   level + 1, and an `NSStatusItem` chip. It also edits the two account lists under a
@@ -82,6 +85,10 @@ available in a terminal (`ai-usage`) and, optionally, as a Claude Code status li
   next refresh until it exits; there is no whole-fetch watchdog.
 
 ## Changelog
+
+- 2026-10-22 — Redesigned card: provider logos, light tints, one block per account with
+  badges ("Most headroom" from the dispatch rule, "<window> limit · <time>", "not live",
+  "login expired"), Claude resets and plan (`plan` field from work-mode.py).
 
 - 2026-10-22 — Every reported window gets a row: a 5h row hidden at 0% looked like a
   missing window rather than a free one.

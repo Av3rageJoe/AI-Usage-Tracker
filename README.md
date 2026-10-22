@@ -4,7 +4,7 @@ A small macOS desktop widget that shows how much of your **OpenAI Codex** and **
 Code** subscription usage is left — per Codex account, plus Claude's own 7-day and 5-hour
 windows — so you know which one to use before you start a big task.
 
-<img src="docs/images/widget.png" alt="The AI Usage Tracker card: Codex accounts A and B, then Claude's 7-day and 5-hour windows, with a NORMAL mode pill" width="300">
+<img src="docs/images/widget.png" alt="The AI Usage Tracker card: a Codex section with accounts A (most headroom) and B (5-hour limit reached), then a Claude section with its weekly and 5-hour windows and plan, and a NORMAL mode pill" width="300">
 
 - **A card on your desktop**, behind your other windows like an iPhone widget (one per display).
 - **A menu bar chip** such as `A43 B91 CL58`, coloured green / amber / red.
@@ -89,13 +89,18 @@ To update later, run `git pull` and then `./install.sh` again. Your account list
 | `43%` | The share of that usage window you've used, read live from the provider. |
 | `43%*` | **Not live.** An estimate from local Codex logs, used when the live read failed. It can't see Codex Cloud or Desktop usage, so the real figure may be higher. |
 | `—` | No figure at all. The note under it says why, for example `login expired` or `no-auth`. |
-| `in 3d 4h` | Time until that window resets. |
+| `3d 4h` | Time until that window resets. |
+| **Most headroom** | The account `ai-usage` would pick for your next task (live figures only). |
+| **5h limit · 1h 19m** | That window is used up; the account is blocked until the time shown. |
+| **not live** / **login expired** | The figure is a local estimate, or that account needs `codex login` again. |
 | `NORMAL` | Claude is under 90% on both windows. |
 | `CODEX-FIRST` | Claude is at 90% or more, and a Codex account has every window under 80%. Move work there. |
 | `NO-RELIEF` | Claude is at 90% or more, and no Codex account has that much headroom. |
 | `UNKNOWN` | A window that decides the mode couldn't be read. Treat it as "check before starting something big", never as NORMAL. |
 
-Colours: green is under 60%, amber is 60% or more, red is 85% or more.
+Colours: green is under 60%, amber is 60% or more, red is 85% or more. The Codex and
+Claude logos are the icons of the Codex and Claude apps, if you have them installed;
+macOS supplies them at run time and none ship with this project.
 
 ### Several Codex accounts
 

@@ -62,6 +62,7 @@ import datetime
 import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -126,6 +127,20 @@ CLAUDE_BLIND_RETRY = 10 * 60
 
 # ------------------------------------------------------------------ Claude usage
 
+# The plan the widget names on its Claude header ("Max 5×"), from the same Keychain read
+# as the token — a label only, never a secret.
+CLAUDE_PLAN = None
+
+
+def plan_label(oauth):
+    sub = str((oauth or {}).get("subscriptionType") or "").strip().lower()
+    if not sub:
+        return None
+    name = {"max": "Max", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"}.get(sub, sub.title())
+    tier = re.search(r"(\d+)x$", str(oauth.get("rateLimitTier") or "").strip().lower())
+    return "%s %s×" % (name, tier.group(1)) if tier else name
+
+
 def claude_token():
     """The OAuth access token, from the Keychain item the login writes (file as fallback)."""
     raw = None
@@ -150,6 +165,8 @@ def claude_token():
     except ValueError:
         return None, "unreadable-credentials"
     oauth = data.get("claudeAiOauth") or data
+    global CLAUDE_PLAN
+    CLAUDE_PLAN = plan_label(oauth)
     token = oauth.get("accessToken")
     if not token:
         return None, "no-token"
@@ -402,7 +419,7 @@ def claude_fetch():
     if missing:
         return None, "missing-%s-window-in-response" % "-and-".join(missing), 0
     return {"7d": seven, "5h": five,
-            "resets_7d": seven_reset, "resets_5h": five_reset}, None, 0
+            "resets_7d": seven_reset, "resets_5h": five_reset, "plan": CLAUDE_PLAN}, None, 0
 
 
 # ------------------------------------------------------------------- Codex usage

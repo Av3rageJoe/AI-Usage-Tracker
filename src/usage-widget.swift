@@ -796,25 +796,112 @@ let headless = dumpMode || shotPath != nil || iconPath != nil || checkMenusMode
 
 // MARK: - palette
 // Follows the system appearance the way an iOS widget does, rather than pinning one
-// scheme: the first build pinned dark and washed out on a light desktop.
+// scheme: the first build pinned dark and washed out on a light desktop. The 2026-10-22
+// redesign keeps the surfaces neutral and uses colour lightly: a faint tint per provider,
+// softer level colours, and a pastel badge per account.
 
 func dyn(_ light: NSColor, _ dark: NSColor) -> NSColor {
     NSColor(name: nil) { $0.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light }
 }
-let cardBG = dyn(NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.97),
-                 NSColor(srgbRed: 0.11, green: 0.11, blue: 0.12, alpha: 0.97))
-let primary = dyn(NSColor(white: 0.10, alpha: 1), NSColor(white: 0.97, alpha: 1))
-let secondary = dyn(NSColor(white: 0.45, alpha: 1), NSColor(white: 0.62, alpha: 1))
-let track = dyn(NSColor(white: 0.90, alpha: 1), NSColor(white: 0.24, alpha: 1))
-let hairline = dyn(NSColor(white: 0.88, alpha: 1), NSColor(white: 0.22, alpha: 1))
-let green = NSColor(srgbRed: 0.20, green: 0.72, blue: 0.35, alpha: 1)
-let amber = NSColor(srgbRed: 0.95, green: 0.62, blue: 0.07, alpha: 1)
-let red = NSColor(srgbRed: 0.91, green: 0.26, blue: 0.21, alpha: 1)
+func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> NSColor {
+    NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+}
+
+// The three levels by identity: the chip, --chip-from and the app icon name these.
+let green = rgb(0.20, 0.72, 0.35)
+let amber = rgb(0.95, 0.62, 0.07)
+let red = rgb(0.91, 0.26, 0.21)
+
+let cardBG = dyn(rgb(1, 1, 1, 0.95), rgb(0.118, 0.118, 0.125, 0.95))
+let cardEdge = dyn(rgb(0, 0, 0, 0.06), rgb(1, 1, 1, 0.07))
+let ink = dyn(rgb(0.114, 0.114, 0.122), rgb(0.961, 0.961, 0.969))
+let ink2 = dyn(rgb(0.431, 0.431, 0.451), rgb(0.631, 0.631, 0.651))
+let ink3 = dyn(rgb(0.631, 0.631, 0.651), rgb(0.431, 0.431, 0.451))
+let hairline = dyn(rgb(0, 0, 0, 0.06), rgb(1, 1, 1, 0.07))
+let track = dyn(rgb(0.91, 0.91, 0.929), rgb(0.247, 0.247, 0.263))
+let codexTint = dyn(rgb(0.957, 0.965, 0.961), rgb(1, 1, 1, 0.045))
+let claudeTint = dyn(rgb(0.984, 0.953, 0.937), rgb(0.851, 0.467, 0.341, 0.11))
+let buttonBG = dyn(rgb(0.941, 0.941, 0.953), rgb(1, 1, 1, 0.08))
+let buttonInk = dyn(rgb(0.541, 0.541, 0.561), rgb(0.631, 0.631, 0.651))
+
+/// One level as the card draws it: the bar's fill, the figure's text, a pill's fill.
+struct Tone { let fill: NSColor; let text: NSColor; let pill: NSColor }
+let okTone = Tone(fill: dyn(rgb(0.239, 0.741, 0.490), rgb(0.247, 0.812, 0.541)),
+                  text: dyn(rgb(0.122, 0.541, 0.333), rgb(0.435, 0.863, 0.647)),
+                  pill: dyn(rgb(0.886, 0.957, 0.918), rgb(0.247, 0.812, 0.541, 0.16)))
+let warnTone = Tone(fill: dyn(rgb(0.941, 0.682, 0.235), rgb(0.953, 0.714, 0.282)),
+                    text: dyn(rgb(0.659, 0.427, 0.071), rgb(0.961, 0.769, 0.416)),
+                    pill: dyn(rgb(0.992, 0.941, 0.859), rgb(0.953, 0.714, 0.282, 0.16)))
+let alertTone = Tone(fill: dyn(rgb(0.925, 0.416, 0.369), rgb(0.941, 0.455, 0.408)),
+                     text: dyn(rgb(0.80, 0.247, 0.208), rgb(1.0, 0.541, 0.494)),
+                     pill: dyn(rgb(0.992, 0.910, 0.902), rgb(0.941, 0.455, 0.408, 0.17)))
+let quietTone = Tone(fill: track, text: ink2, pill: dyn(rgb(0.929, 0.929, 0.945), rgb(1, 1, 1, 0.08)))
 
 func colour(_ pct: Double, warn: Double, alert: Double) -> NSColor {
     if pct >= alert { return red }
     if pct >= warn { return amber }
     return green
+}
+
+func tone(_ pct: Double, warn: Double, alert: Double) -> Tone {
+    pct >= alert ? alertTone : pct >= warn ? warnTone : okTone
+}
+
+/// A level colour as the menu bar draws it: the softer text tone of the same level.
+func chipInk(_ level: NSColor) -> NSColor {
+    level === red ? alertTone.text : level === amber ? warnTone.text : okTone.text
+}
+
+/// Each account letter keeps one pastel — chosen by the letter, so adding or removing an
+/// account never repaints the others.
+let avatarTones: [(bg: NSColor, ink: NSColor)] = [
+    (dyn(rgb(0.902, 0.929, 0.984), rgb(0.353, 0.549, 0.961, 0.20)),
+     dyn(rgb(0.184, 0.373, 0.769), rgb(0.576, 0.710, 1.0))),     // blue
+    (dyn(rgb(0.984, 0.902, 0.941), rgb(0.949, 0.400, 0.698, 0.20)),
+     dyn(rgb(0.749, 0.247, 0.498), rgb(1.0, 0.600, 0.800))),     // pink
+    (dyn(rgb(0.882, 0.953, 0.925), rgb(0.235, 0.765, 0.549, 0.18)),
+     dyn(rgb(0.122, 0.541, 0.388), rgb(0.455, 0.863, 0.671))),   // teal
+    (dyn(rgb(0.937, 0.906, 0.980), rgb(0.647, 0.451, 0.961, 0.20)),
+     dyn(rgb(0.455, 0.282, 0.749), rgb(0.776, 0.651, 1.0))),     // violet
+    (dyn(rgb(0.992, 0.941, 0.859), rgb(0.953, 0.714, 0.282, 0.20)),
+     dyn(rgb(0.659, 0.427, 0.071), rgb(0.961, 0.769, 0.416))),   // amber
+]
+func avatarTone(_ label: String) -> (bg: NSColor, ink: NSColor) {
+    avatarTones[Int(label.unicodeScalars.first?.value ?? 0) % avatarTones.count]
+}
+
+// MARK: - logos
+// The section logos are the providers' own app icons, asked of macOS at run time, so
+// nothing brand-owned ships in this file. An app that is not installed gets a plain
+// drawn mark in its place.
+
+enum Logos {
+    static let codex: NSImage = installedIcon(["com.openai.codex", "com.openai.chat"])
+        ?? drawnMark(">_", rgb(0.10, 0.10, 0.11))
+    static let claude: NSImage = installedIcon(["com.anthropic.claudefordesktop"])
+        ?? drawnMark("✳", rgb(0.851, 0.467, 0.341))
+
+    static func installedIcon(_ bundleIDs: [String]) -> NSImage? {
+        for id in bundleIDs {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+                return NSWorkspace.shared.icon(forFile: url.path)
+            }
+        }
+        return nil
+    }
+
+    static func drawnMark(_ mark: String, _ fill: NSColor) -> NSImage {
+        NSImage(size: NSSize(width: 32, height: 32), flipped: false) { rect in
+            fill.setFill()
+            NSBezierPath(roundedRect: rect.insetBy(dx: 3, dy: 3), xRadius: 7, yRadius: 7).fill()
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 13, weight: .bold), .foregroundColor: NSColor.white]
+            let size = mark.size(withAttributes: attrs)
+            mark.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
+                      withAttributes: attrs)
+            return true
+        }
+    }
 }
 
 /// A percentage from the scripts' JSON, finite and clamped to 0...100, or nil. Every figure
@@ -825,16 +912,24 @@ func cleanPct(_ raw: Any?) -> Double? {
     return min(100, max(0, value))
 }
 
-// "in 5d 21h" — shorter than a wall-clock stamp, and the question actually being asked.
-func resetText(_ epoch: Double?) -> String {
+/// "4d 17h" — the time left until a window resets, which is the question actually asked.
+func shortReset(_ epoch: Double?) -> String {
     // 4102444800 = 2100-01-01: anything later (or non-finite) is garbage, not a reset time.
     guard let epoch, epoch.isFinite, epoch > 0, epoch < 4_102_444_800 else { return "" }
     let left = Int(epoch - Date().timeIntervalSince1970)
-    if left <= 0 { return "resetting" }
+    if left <= 0 { return "now" }
     let (d, h, m) = (left / 86400, (left % 86400) / 3600, (left % 3600) / 60)
-    if d > 0 { return "in \(d)d \(h)h" }
-    if h > 0 { return "in \(h)h \(m)m" }
-    return "in \(m)m"
+    if d > 0 { return "\(d)d \(h)h" }
+    if h > 0 { return "\(h)h \(m)m" }
+    return "\(max(m, 1))m"
+}
+
+/// work-mode.py reports Claude's resets as ISO 8601 with microseconds, which
+/// ISO8601DateFormatter does not parse — so the fraction is dropped first.
+func isoEpoch(_ raw: Any?) -> Double? {
+    guard let text = raw as? String else { return nil }
+    let whole = text.replacingOccurrences(of: "\\.[0-9]+", with: "", options: .regularExpression)
+    return ISO8601DateFormatter().date(from: whole)?.timeIntervalSince1970
 }
 
 /// Run a python script and decode its stdout as JSON. Returns nil on any failure — a
@@ -859,17 +954,29 @@ func runJSON(_ script: String) -> [String: Any]? {
 
 // MARK: - model
 
-struct Bar {
-    let name: String       // "A", "Claude"
-    let detail: String     // "~/.codex · 7d"
-    let pct: Double?       // nil = unreadable
-    let note: String       // "in 5d 21h"
-    let stale: Bool
+/// One usage window as a row on the card.
+struct UsageWindow {
+    let name: String       // "Week", "5h"
+    let pct: Double
+    let reset: String      // "4d 17h"; empty when unknown
+    let stale: Bool        // a floor from local logs, not a live reading
+}
+
+struct Badge { let text: String; let tone: Tone; let dot: Bool }
+
+struct AccountRow {
+    let label: String      // "A"
+    let path: String       // "~/.codex"
+    var windows: [UsageWindow] = []
+    var badge: Badge?
 }
 
 struct Model {
-    var codex: [Bar] = []
-    var claude: [Bar] = []
+    var accounts: [AccountRow] = []
+    var codexReadable = true
+    var claude: [UsageWindow] = []
+    var claudeReadable = true
+    var claudePlan = ""    // "Max 5×"
     var mode = "UNKNOWN"
     var why = ""
     var warn = 60.0
@@ -884,6 +991,14 @@ final class FirstMouseButton: NSButton {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+let cardPad: CGFloat = 14
+let sectionInset: CGFloat = 10
+
+/// The header buttons, right-aligned; index 0 is the rightmost (close).
+func headerButtonFrame(_ index: Int) -> NSRect {
+    NSRect(x: cardWidth - cardPad - 20 - CGFloat(index) * 26, y: 12, width: 20, height: 20)
+}
+
 final class CardView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     var model = Model()
@@ -892,8 +1007,15 @@ final class CardView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSGraphicsContext.current?.cgContext.setShouldAntialias(true)
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25),
+                                 xRadius: 22, yRadius: 22)
         cardBG.setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 20, yRadius: 20).fill()
+        shape.fill()
+        cardEdge.setStroke()
+        shape.lineWidth = 0.5
+        shape.stroke()
+        buttonBG.setFill()
+        for i in 0..<3 { NSBezierPath(ovalIn: headerButtonFrame(i)).fill() }
         layout(draw: true)
     }
 
@@ -904,104 +1026,197 @@ final class CardView: NSView {
     @discardableResult
     private func layout(draw: Bool) -> CGFloat {
         drawing = draw
-        let w = cardWidth - pad * 2
-        var y = pad
+        let left = cardPad, right = cardWidth - cardPad
+        var y: CGFloat = 14
 
-        func text(_ s: String, _ font: NSFont, _ colour: NSColor,
-                  x: CGFloat = pad, width: CGFloat? = nil,
-                  align: NSTextAlignment = .left, lines: Int = 1) -> CGFloat {
+        func measure(_ s: String, _ font: NSFont, kern: CGFloat = 0) -> NSSize {
+            NSAttributedString(string: s, attributes: [.font: font, .kern: kern]).size()
+        }
+
+        @discardableResult
+        func text(_ s: String, _ font: NSFont, _ colour: NSColor, x: CGFloat, y top: CGFloat,
+                  width: CGFloat, align: NSTextAlignment = .left, lines: Int = 1,
+                  kern: CGFloat = 0) -> CGFloat {
+            guard !s.isEmpty, width > 0 else { return 0 }
             let style = NSMutableParagraphStyle()
             style.alignment = align
             style.lineBreakMode = lines == 1 ? .byTruncatingTail : .byWordWrapping
-            let attrs: [NSAttributedString.Key: Any] =
-                [.font: font, .foregroundColor: colour, .paragraphStyle: style]
-            let box = NSSize(width: width ?? (cardWidth - x - pad),
-                             height: CGFloat(lines) * (font.pointSize + 5))
-            let a = NSAttributedString(string: s, attributes: attrs)
-            let h = ceil(a.boundingRect(with: box, options: .usesLineFragmentOrigin).height)
-            if drawing { a.draw(with: NSRect(x: x, y: y, width: box.width, height: h),
-                                options: .usesLineFragmentOrigin) }
+            let a = NSAttributedString(string: s, attributes: [
+                .font: font, .foregroundColor: colour, .paragraphStyle: style, .kern: kern])
+            let lineHeight = ceil(font.ascender - font.descender + font.leading)
+            let box = NSSize(width: width, height: CGFloat(lines) * lineHeight)
+            let options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+            let h = min(box.height, ceil(a.boundingRect(with: box, options: options).height))
+            if drawing { a.draw(with: NSRect(x: x, y: top, width: width, height: h), options: options) }
             return h
         }
 
-        func bar(_ pct: Double, _ colour: NSColor) {
-            guard drawing else { return }
-            let r = NSRect(x: pad, y: y, width: w, height: 6)
+        func bar(x: CGFloat, y top: CGFloat, width: CGFloat, pct: Double, tone t: Tone) {
+            guard drawing, width > 0 else { return }
+            let r = NSRect(x: x, y: top, width: width, height: 5)
             track.setFill()
-            NSBezierPath(roundedRect: r, xRadius: 3, yRadius: 3).fill()
+            NSBezierPath(roundedRect: r, xRadius: 2.5, yRadius: 2.5).fill()
             guard pct > 0 else { return }  // an empty window is an empty track, not a nub
-            let filled = max(6, w * CGFloat(min(100, max(0, pct))) / 100)
-            colour.setFill()
-            NSBezierPath(roundedRect: NSRect(x: pad, y: y, width: filled, height: 6),
-                         xRadius: 3, yRadius: 3).fill()
+            let filled = NSRect(x: x, y: top, width: max(4, width * CGFloat(pct) / 100), height: 5)
+            let end = t.fill.usingColorSpace(.sRGB) ?? t.fill
+            let start = end.blended(withFraction: 0.25, of: .white) ?? end
+            NSGradient(starting: start, ending: end)?
+                .draw(in: NSBezierPath(roundedRect: filled, xRadius: 2.5, yRadius: 2.5), angle: 0)
         }
 
-        func section(_ title: String) {
-            y += text(title, .systemFont(ofSize: 10, weight: .semibold), secondary)
-            y += 6
-        }
-
-        func rows(_ bars: [Bar]) {
-            for b in bars {
-                _ = text(b.name, .systemFont(ofSize: 13, weight: .semibold), primary)
-                if let pct = b.pct {
-                    _ = text(String(format: "%d%%", Int(pct.rounded())) + (b.stale ? "*" : ""),
-                             .monospacedDigitSystemFont(ofSize: 13, weight: .bold),
-                             colour(pct, warn: model.warn, alert: model.alert),
-                             align: .right)
-                } else {
-                    _ = text("—", .systemFont(ofSize: 13, weight: .bold), red, align: .right)
-                }
-                y += 18
-                bar(b.pct ?? 0, b.pct.map { colour($0, warn: model.warn, alert: model.alert) } ?? track)
-                y += 6 + 4
-                let tail = [b.detail, b.note].filter { !$0.isEmpty }.joined(separator: " · ")
-                if !tail.isEmpty {
-                    y += text(tail, .systemFont(ofSize: 10, weight: .regular), secondary)
-                }
-                y += 8
+        /// A rounded label; returns its width. Drawn leftwards from `rightEdge` when given.
+        @discardableResult
+        func pill(_ s: String, tone t: Tone, x: CGFloat? = nil, rightEdge: CGFloat? = nil,
+                  y top: CGFloat, dot: Bool, font: NSFont, kern: CGFloat = 0,
+                  height: CGFloat = 17) -> CGFloat {
+            let size = measure(s, font, kern: kern)
+            let width = ceil(size.width) + 14 + (dot ? 9 : 0)
+            let originX = x ?? ((rightEdge ?? right) - width)
+            guard drawing else { return width }
+            t.pill.setFill()
+            NSBezierPath(roundedRect: NSRect(x: originX, y: top, width: width, height: height),
+                         xRadius: height / 2, yRadius: height / 2).fill()
+            var textX = originX + 7
+            if dot {
+                t.text.setFill()
+                NSBezierPath(ovalIn: NSRect(x: textX, y: top + height / 2 - 2.5, width: 5, height: 5)).fill()
+                textX += 9
             }
+            NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: t.text, .kern: kern])
+                .draw(at: NSPoint(x: textX, y: top + (height - size.height) / 2))
+            return width
         }
 
-        // header — the right-hand third is reserved for the +, ⋯ and ✕ buttons
+        func avatar(_ label: String, x: CGFloat, y top: CGFloat) {
+            guard drawing else { return }
+            let t = avatarTone(label)
+            t.bg.setFill()
+            NSBezierPath(ovalIn: NSRect(x: x, y: top, width: 19, height: 19)).fill()
+            let font = NSFont.systemFont(ofSize: 10.5, weight: .bold)
+            let s = String(label.prefix(2))
+            let size = measure(s, font)
+            NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: t.ink])
+                .draw(at: NSPoint(x: x + (19 - size.width) / 2, y: top + (19 - size.height) / 2))
+        }
+
+        func logo(_ image: NSImage, x: CGFloat, y top: CGFloat) {
+            guard drawing else { return }
+            image.draw(in: NSRect(x: x, y: top, width: 18, height: 18), from: .zero,
+                       operation: .sourceOver, fraction: 1, respectFlipped: true,
+                       hints: [.interpolation: NSImageInterpolation.high.rawValue])
+        }
+
+        /// Week / 5h: label, bar, figure and time to reset, in fixed columns.
+        func windowRow(_ w: UsageWindow, x0: CGFloat, x1: CGFloat, y top: CGFloat) {
+            let (labelW, pctW, resetW, gap): (CGFloat, CGFloat, CGFloat, CGFloat) = (34, 38, 50, 7)
+            let t = tone(w.pct, warn: model.warn, alert: model.alert)
+            text(w.name, .systemFont(ofSize: 10.5), ink2, x: x0, y: top + 1.5, width: labelW)
+            let barX = x0 + labelW + gap
+            let barW = x1 - resetW - gap - pctW - gap - barX
+            bar(x: barX, y: top + 6, width: barW, pct: w.pct, tone: t)
+            text(String(Int(w.pct.rounded())) + "%" + (w.stale ? "*" : ""),
+                 .monospacedDigitSystemFont(ofSize: 11.5, weight: .semibold), t.text,
+                 x: barX + barW + gap, y: top, width: pctW, align: .right)
+            text(w.reset, .monospacedDigitSystemFont(ofSize: 10, weight: .regular), ink3,
+                 x: x1 - resetW, y: top + 2, width: resetW, align: .right)
+        }
+
+        /// A tinted, rounded block. Measured silently first so its fill is painted beneath.
+        func section(tint: NSColor, _ body: (inout CGFloat) -> Void) {
+            let top = y, wasDrawing = drawing
+            drawing = false
+            var probe = top + 9
+            body(&probe)
+            let height = probe - top + 4
+            drawing = wasDrawing
+            if drawing {
+                tint.setFill()
+                NSBezierPath(roundedRect: NSRect(x: left, y: top, width: right - left, height: height),
+                             xRadius: 15, yRadius: 15).fill()
+            }
+            var cursor = top + 9
+            body(&cursor)
+            y = top + height + 9
+        }
+
+        func sectionHeader(_ image: NSImage, _ name: String, meta: String, y top: inout CGFloat) {
+            let x0 = left + sectionInset, x1 = right - sectionInset
+            logo(image, x: x0, y: top)
+            text(name, .systemFont(ofSize: 12.5, weight: .semibold), ink, x: x0 + 25, y: top + 1, width: 110)
+            text(meta, .systemFont(ofSize: 10.5), ink2, x: x1 - 120, y: top + 2.5, width: 120, align: .right)
+            top += 18 + 7
+        }
+
+        // header — the right-hand side is the +, ⋯ and ✕ buttons
         let clock = DateFormatter()
         clock.locale = Locale(identifier: "en_US_POSIX")  // else the 12/24-hour preference wins
         clock.dateFormat = "HH:mm"
-        _ = text("AI USAGE  ·  " + clock.string(from: Date()),
-                 .systemFont(ofSize: 10, weight: .bold), secondary, width: cardWidth - pad - 88)
-        y += 18
+        let titleFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        text("Usage", titleFont, ink, x: left + 2, y: y, width: 80)
+        text(clock.string(from: Date()), .monospacedDigitSystemFont(ofSize: 11, weight: .regular), ink3,
+             x: left + 2 + ceil(measure("Usage", titleFont).width) + 7, y: y + 2, width: 60)
+        y += 20 + 10
 
-        rows(model.codex)
-
-        // The verdict, not just the figures: which account to dispatch to is the reason
-        // this readout exists. statusline.py owns the rule; the card only lays it out.
-        if drawing {
-            hairline.setFill()
-            NSRect(x: pad, y: y, width: w, height: 1).fill()
+        section(tint: codexTint) { cy in
+            let x0 = left + sectionInset, x1 = right - sectionInset
+            let count = model.accounts.count
+            sectionHeader(Logos.codex, "Codex",
+                          meta: model.codexReadable ? (count == 1 ? "1 account" : "\(count) accounts") : "",
+                          y: &cy)
+            if !model.codexReadable {
+                text("Could not read Codex usage", .systemFont(ofSize: 11), alertTone.text,
+                     x: x0, y: cy, width: x1 - x0)
+                cy += 20
+            }
+            for (i, account) in model.accounts.enumerated() {
+                if i > 0, drawing {
+                    hairline.setFill()
+                    NSRect(x: x0, y: cy, width: x1 - x0, height: 0.5).fill()
+                }
+                cy += 6
+                avatar(account.label, x: x0, y: cy)
+                var nameRight = x1
+                if let b = account.badge {
+                    nameRight = x1 - pill(b.text, tone: b.tone, rightEdge: x1, y: cy + 1, dot: b.dot,
+                                          font: .systemFont(ofSize: 10, weight: .semibold)) - 8
+                }
+                text(account.path, .systemFont(ofSize: 12, weight: .medium), ink,
+                     x: x0 + 26, y: cy + 2, width: nameRight - x0 - 26)
+                cy += 19 + 5
+                for w in account.windows {
+                    windowRow(w, x0: x0 + 26, x1: x1, y: cy)
+                    cy += 17
+                }
+                cy += 6
+            }
         }
-        y += 13
 
-        section("CLAUDE")
-        rows(model.claude)
+        section(tint: claudeTint) { cy in
+            let x0 = left + sectionInset, x1 = right - sectionInset
+            sectionHeader(Logos.claude, "Claude", meta: model.claudePlan, y: &cy)
+            cy += 4
+            if model.claude.isEmpty {
+                text("Usage unreadable — see below", .systemFont(ofSize: 11), alertTone.text,
+                     x: x0, y: cy, width: x1 - x0)
+                cy += 20
+            }
+            for w in model.claude {
+                windowRow(w, x0: x0, x1: x1, y: cy)
+                cy += 17
+            }
+            cy += 6
+        }
 
         // footer: the MODE pill, then the sentence behind it
-        let modeColour = model.mode == "NORMAL" ? green : (model.mode == "UNKNOWN" ? red : amber)
-        if drawing {
-            let size = NSAttributedString(string: model.mode, attributes: [
-                .font: NSFont.systemFont(ofSize: 9, weight: .bold)]).size()
-            let r = NSRect(x: pad, y: y, width: ceil(size.width) + 14, height: 16)
-            modeColour.withAlphaComponent(0.16).setFill()
-            NSBezierPath(roundedRect: r, xRadius: 8, yRadius: 8).fill()
-            NSAttributedString(string: model.mode, attributes: [
-                .font: NSFont.systemFont(ofSize: 9, weight: .bold),
-                .foregroundColor: modeColour,
-            ]).draw(at: NSPoint(x: pad + 7, y: y + 3))
-        }
-        y += 16 + 6
-        if !model.why.isEmpty {
-            y += text(model.why, .systemFont(ofSize: 10, weight: .regular), secondary, lines: 2)
-        }
-        return y + pad
+        let modeTone = model.mode == "NORMAL" ? okTone
+            : (model.mode == "UNKNOWN" || model.mode == "CHECK-BROKEN") ? alertTone : warnTone
+        let pillWidth = pill(model.mode, tone: modeTone, x: left + 2, y: y, dot: true,
+                             font: .systemFont(ofSize: 9.5, weight: .bold), kern: 0.6, height: 18)
+        let whyX = left + 2 + pillWidth + 8
+        let whyHeight = text(model.why, .systemFont(ofSize: 10.5), ink2,
+                             x: whyX, y: y + 2, width: right - whyX, lines: 3)
+        y += max(18, whyHeight + 2)
+        return y + 13
     }
 }
 
@@ -1044,16 +1259,17 @@ final class CardPanel {
         panel.setFrameUsingName(autosaveName)
 
         for (button, symbol, help, action) in [
-            (addButton, "plus.circle.fill", "Add a Codex account", #selector(Widget.addAccount)),
-            (moreButton, "ellipsis.circle.fill", "Accounts", #selector(Widget.showAccountsMenu(_:))),
-            (close, "xmark.circle.fill", "Close (reopen from Spotlight)", #selector(Widget.hidePanel)),
+            (addButton, "plus", "Add a Codex account", #selector(Widget.addAccount)),
+            (moreButton, "ellipsis", "Accounts", #selector(Widget.showAccountsMenu(_:))),
+            (close, "xmark", "Close (reopen from Spotlight)", #selector(Widget.hidePanel)),
         ] {
+            // A small glyph on a circle the card paints beneath it (headerButtonFrame).
             button.title = ""
             button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)?
-                .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+                .withSymbolConfiguration(.init(pointSize: 9, weight: .bold))
             button.imagePosition = .imageOnly
             button.isBordered = false
-            button.contentTintColor = secondary
+            button.contentTintColor = buttonInk
             button.toolTip = help
             button.target = owner
             button.action = action
@@ -1099,7 +1315,7 @@ final class CardPanel {
     /// Right-aligned in the header, in reading order: add, accounts, close.
     func layoutButtons() {
         for (i, button) in [addButton, moreButton, close].reversed().enumerated() {
-            button.frame = NSRect(x: cardWidth - 26 - CGFloat(i) * 21, y: 10, width: 17, height: 17)
+            button.frame = headerButtonFrame(i)
         }
     }
 
@@ -1794,38 +2010,52 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
         m.warn = cleanPct(codex?["warn_at"]) ?? 60
         m.alert = cleanPct(codex?["alert_at"]) ?? 85
         var chips: [(String, NSColor)] = []
+        // statusline.py owns the dispatch rule (live figures only); the card just marks its
+        // pick — and only when there is a choice to make.
+        let rows = codex?["accounts"] as? [Any] ?? []
+        let dispatch = codex?["dispatch"] as? [String: Any]
+        let pick = rows.count > 1 && ["ok", "warn"].contains(dispatch?["level"] as? String ?? "")
+            ? dispatch?["account"] as? String : nil
 
-        for case let a as [String: Any] in (codex?["accounts"] as? [Any] ?? []) {
+        for case let a as [String: Any] in rows {
             let label = a["label"] as? String ?? "?"
-            let path = a["home"] as? String ?? ""
             let stale = a["stale"] as? Bool ?? false
             let slots = a["slots"] as? [String: Any] ?? [:]
-            if slots.isEmpty {
-                let why = a["reason"] as? String ?? "no figure"
-                m.codex.append(Bar(name: label, detail: path,
-                                   pct: nil, note: why == "expired" ? "login expired" : why,
-                                   stale: false))
-                chips.append((label + "—", red))
-                continue
-            }
+            var row = AccountRow(label: label, path: a["home"] as? String ?? "")
+            var spent: (name: String, resetsAt: Double)?  // the full window that frees up last
             // 7d first — it is the window that decides dispatch — then anything else.
             let order = (slots.keys.contains("7d") ? ["7d"] : []) + slots.keys.filter { $0 != "7d" }.sorted()
-            for (i, key) in order.enumerated() {
+            for key in order {
                 guard let slot = slots[key] as? [String: Any], let pct = cleanPct(slot["pct"]) else { continue }
                 // Every window the API reports gets a row, an unused 5h one included: hiding
                 // it at 0% made a free window look like a missing one.
-                m.codex.append(Bar(name: i == 0 ? "\(label)  \(key)" : "    \(key)",
-                                   detail: i == 0 ? path : "",
-                                   pct: pct, note: resetText(slot["resets_at"] as? Double),
-                                   stale: stale))
-                if i == 0 {
-                    chips.append((label + String(Int(pct.rounded())) + (stale ? "*" : ""),
-                                  colour(pct, warn: m.warn, alert: m.alert)))
-                }
+                let name = key == "7d" ? "Week" : key
+                let resetsAt = slot["resets_at"] as? Double
+                row.windows.append(UsageWindow(name: name, pct: pct, reset: shortReset(resetsAt), stale: stale))
+                if pct >= 100, (resetsAt ?? 0) >= (spent?.resetsAt ?? -1) { spent = (name, resetsAt ?? 0) }
             }
+            if let first = row.windows.first {
+                if let spent {
+                    let when = shortReset(spent.resetsAt)
+                    row.badge = Badge(text: spent.name + " limit" + (when.isEmpty ? "" : " · " + when),
+                                      tone: alertTone, dot: true)
+                } else if stale {
+                    row.badge = Badge(text: "not live", tone: quietTone, dot: false)
+                } else if label == pick {
+                    row.badge = Badge(text: "Most headroom", tone: okTone, dot: false)
+                }
+                chips.append((label + String(Int(first.pct.rounded())) + (stale ? "*" : ""),
+                              colour(first.pct, warn: m.warn, alert: m.alert)))
+            } else {
+                let why = a["reason"] as? String
+                row.badge = why == "expired" ? Badge(text: "login expired", tone: alertTone, dot: true)
+                    : Badge(text: why == "no-auth" ? "not signed in" : "no figure", tone: quietTone, dot: false)
+                chips.append((label + "—", red))
+            }
+            m.accounts.append(row)
         }
         if codex == nil {
-            m.codex.append(Bar(name: "Codex", detail: "could not read usage", pct: nil, note: "", stale: false))
+            m.codexReadable = false
             chips.append(("codex?", red))
         }
 
@@ -1833,13 +2063,15 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // work-mode serves a cached figure while the endpoint is cooling down; mark it
             // like a cached Codex figure so neither the card nor the chip passes it as live.
             let stale = c["stale"] as? Bool ?? false
-            for key in ["7d", "5h"] {
+            for (key, name) in [("7d", "Week"), ("5h", "5h")] {
                 guard let pct = cleanPct(c[key]) else { continue }
-                m.claude.append(Bar(name: key, detail: "", pct: pct, note: "", stale: stale))
+                m.claude.append(UsageWindow(name: name, pct: pct,
+                                            reset: shortReset(isoEpoch(c["resets_" + key])), stale: stale))
             }
+            m.claudePlan = c["plan"] as? String ?? ""
             // Claude rides the same chip as Codex, with its 7-day figure like each Codex
-            // account's. "CL" because a lone "C" is already a Codex label, and "Cl" reads
-            // as "CI" in this font.
+            // account's. "CL" names it in text (--chip-from, --dump); the menu bar draws
+            // Claude's logo there instead.
             if let pct = cleanPct(c["7d"]) {
                 chips.append(("CL" + String(Int(pct.rounded())) + (stale ? "*" : ""),
                               colour(pct, warn: m.warn, alert: m.alert)))
@@ -1847,26 +2079,54 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 chips.append(("CL?", red))
             }
         } else {
-            m.claude.append(Bar(name: "Claude", detail: "budget unreadable", pct: nil, note: "", stale: false))
+            m.claudeReadable = false
             chips.append(("CL?", red))
         }
         m.mode = mode?["mode"] as? String ?? "UNKNOWN"
-        m.why = mode?["why"] as? String ?? ""
+        // The card already shows Claude's figures, so a NORMAL verdict needs only its reason.
+        let why = mode?["why"] as? String ?? ""
+        m.why = m.mode == "NORMAL"
+            ? why.replacingOccurrences(of: "^Claude 7d [0-9.]+% used — ", with: "Claude ",
+                                       options: .regularExpression)
+            : why
 
         model = m
         panels.values.forEach { $0.apply(m) }
 
-        let chip = NSMutableAttributedString()
-        for (i, c) in chips.enumerated() {
-            if i > 0 { chip.append(NSAttributedString(string: " ")) }
-            chip.append(NSAttributedString(string: c.0, attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-                .foregroundColor: c.1,
-            ]))
-        }
-        chipText = chip.string
+        chipText = chips.map { $0.0 }.joined(separator: " ")
         chipSegments = chips
-        statusItem?.button?.attributedTitle = chip
+        statusItem?.button?.attributedTitle = chipTitle(chips)
+    }
+
+    /// The menu bar title: the Codex logo leads the accounts, Claude's logo leads its own
+    /// figure. Account letters are quiet; each figure wears its level's softer colour.
+    func chipTitle(_ chips: [(String, NSColor)]) -> NSAttributedString {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let out = NSMutableAttributedString()
+        func plain(_ s: String, _ colour: NSColor = .labelColor) {
+            out.append(NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: colour]))
+        }
+        func logo(_ image: NSImage) {
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            attachment.bounds = NSRect(x: 0, y: -3, width: 14, height: 14)
+            out.append(NSAttributedString(attachment: attachment))
+            plain(" ")
+        }
+        var codexStarted = false
+        for (text, level) in chips {
+            if text.hasPrefix("CL") {
+                if codexStarted { plain("  |  ", .tertiaryLabelColor) }
+                logo(Logos.claude)
+                plain(String(text.dropFirst(2)), chipInk(level))
+                continue
+            }
+            if !codexStarted { logo(Logos.codex); codexStarted = true } else { plain(" ") }
+            let label = text.prefix { !$0.isNumber && $0 != "—" && $0 != "?" && $0 != "*" }
+            plain(String(label), .secondaryLabelColor)
+            plain(String(text.dropFirst(label.count)), chipInk(level))
+        }
+        return out
     }
 
     // MARK: - headless checks
@@ -1888,13 +2148,19 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Print what the card holds. Cheap, and it catches parse/order regressions.
     func dumpText() {
         let m = model
-        for b in m.codex + m.claude {
-            print(String(format: "%-12s %5s  %-16s %s",
-                         (b.name as NSString).utf8String!,
-                         ((b.pct.map { String(Int($0.rounded())) + "%" } ?? "—") as NSString).utf8String!,
-                         (b.detail as NSString).utf8String!,
-                         (b.note as NSString).utf8String!))
+        func row(_ w: UsageWindow) -> String {
+            "    " + w.name.padding(toLength: 6, withPad: " ", startingAt: 0)
+                + (String(Int(w.pct.rounded())) + "%" + (w.stale ? "*" : "")).padding(toLength: 7, withPad: " ", startingAt: 0)
+                + w.reset
         }
+        for a in m.accounts {
+            print(a.label + "  " + a.path + (a.badge.map { "  [" + $0.text + "]" } ?? ""))
+            a.windows.forEach { print(row($0)) }
+        }
+        if !m.codexReadable { print("Codex  could not read usage") }
+        print("Claude" + (m.claudePlan.isEmpty ? "" : "  (" + m.claudePlan + ")"))
+        m.claude.forEach { print(row($0)) }
+        if m.claude.isEmpty { print("    unreadable") }
         print("mode: \(m.mode) — \(m.why)")
         print("menu bar: \(chipText)")
         print("accounts: " + loadAccounts().map { "\($0.label)=\($0.home)" }.joined(separator: " "))
