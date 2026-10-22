@@ -3,7 +3,7 @@
 ## What it does
 
 Shows, on the macOS desktop and in the menu bar, how much of each Codex account's usage
-windows (7-day, plus 5-hour when used) and Claude Code's 7-day and 5-hour windows is spent,
+windows (7-day, plus 5-hour when reported) and Claude Code's 7-day and 5-hour windows is spent,
 plus a MODE verdict (NORMAL / CODEX-FIRST / NO-RELIEF / UNKNOWN). The same figures are
 available in a terminal (`ai-usage`) and, optionally, as a Claude Code status line.
 
@@ -83,6 +83,8 @@ available in a terminal (`ai-usage`) and, optionally, as a Claude Code status li
 
 ## Changelog
 
+- 2026-10-22 — Every reported window gets a row: a 5h row hidden at 0% looked like a
+  missing window rather than a free one.
 - 2026-10-21 — Claude usage stopped after a day in the desktop app: the CLI's Keychain
   token expired (only a running `claude` renews it), 401s escalated to a 429, and a
   re-login from the widget landed in a hashed Keychain item. Expired tokens are no longer

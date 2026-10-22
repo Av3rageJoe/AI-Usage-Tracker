@@ -1812,9 +1812,8 @@ final class Widget: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let order = (slots.keys.contains("7d") ? ["7d"] : []) + slots.keys.filter { $0 != "7d" }.sorted()
             for (i, key) in order.enumerated() {
                 guard let slot = slots[key] as? [String: Any], let pct = cleanPct(slot["pct"]) else { continue }
-                // Show a secondary window only when it has actually been used — an empty
-                // 5h row beside a spent 7d row tells you nothing about what is blocking.
-                if i > 0 && pct <= 0 { continue }
+                // Every window the API reports gets a row, an unused 5h one included: hiding
+                // it at 0% made a free window look like a missing one.
                 m.codex.append(Bar(name: i == 0 ? "\(label)  \(key)" : "    \(key)",
                                    detail: i == 0 ? path : "",
                                    pct: pct, note: resetText(slot["resets_at"] as? Double),
